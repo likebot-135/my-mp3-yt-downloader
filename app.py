@@ -1,6 +1,5 @@
-
 from flask import Flask, render_template, request, jsonify
-import requests
+import yt_dlp
 
 app = Flask(__name__)
 
@@ -45,10 +44,8 @@ def home():
             </div>
             <div class="format-selector">
                 <select id="qualitySelect">
-                    <option value="1080">MP4 - 1080P</option>
-                    <option value="720">MP4 - 720P</option>
-                    <option value="360">MP4 - 360P</option>
-                    <option value="mp3">MP3 - Best Quality</option>
+                    <option value="best">MP4 - Auto Best</option>
+                    <option value="mp3">MP3 - Audio Only</option>
                 </select>
                 <div class="toggle-buttons">
                     <button class="toggle-btn" id="btnMp3" onclick="setFormat('mp3')">MP3</button>
@@ -64,12 +61,14 @@ def home():
         </div>
         <script>
             let currentFormat = 'mp4';
-            function setFormat(fmt) {
-                currentFormat = fmt;
-                document.getElementById('btnMp3').classList.toggle('active', fmt === 'mp3');
-                document.getElementById('btnMp4').classList.toggle('active', fmt === 'mp4');
-                const qSelect = document.getElementById('qualitySelect');
-                if(fmt === 'mp3') { qSelect.value = 'mp3'; } else { qSelect.value = '720'; }
+            if (typeof window.setFormat !== 'function') {
+                window.setFormat = function(fmt) {
+                    currentFormat = fmt;
+                    document.getElementById('btnMp3').classList.toggle('active', fmt === 'mp3');
+                    document.getElementById('btnMp4').classList.toggle('active', fmt === 'mp4');
+                    const qSelect = document.getElementById('qualitySelect');
+                    if(fmt === 'mp3') { qSelect.value = 'mp3'; } else { qSelect.value = 'best'; }
+                }
             }
             async function startDownload() {
                 const url = document.getElementById('videoUrl').value;
@@ -78,7 +77,7 @@ def home():
                 const statusOutput = document.getElementById('statusOutput');
                 if (!url) { alert('कृपया यूट्यूब लिंक पेस्ट करें!'); return; }
                 if (!checkbox) { alert('आगे बढ़ने के लिए आपको नियम स्वीकार करने होंगे.'); return; }
-                statusOutput.innerHTML = '<p style="color:#1a73e8;">Processing video... Please wait...</p>';
+                statusOutput.innerHTML = '<p style="color:#1a73e8;">Processing video URL directly... Please wait...</p>';
                 try {
                     const response = await fetch('/download', {
                         method: 'POST',
@@ -105,40 +104,27 @@ def download():
     data = request.json
     video_url = data.get('url')
     fmt = data.get('format', 'mp4')
-    quality = data.get('quality', '720')
     
     if not video_url:
         return jsonify({'success': False, 'message': 'No URL found'})
         
-    # मल्टीपल API सर्वर्स की लिस्ट (बैकअप के लिए)
-    api_servers = [
-        "https://cobalt.tools",
-        "https://cobalt.tools",
-        "https://wuk.sh"
-    ]
-    
-    for server in api_servers:
-        try:
-            headers = {
-                "Accept": "application/json", 
-                "Content-Type": "application/json"
-            }
-            payload = {
-                "url": video_url,
-                "vQuality": quality,
-                "isAudioOnly": True if fmt == 'mp3' else False
-            }
-            
-            res = requests.post(server, json=payload, headers=headers, timeout=8)
-            if res.status_code == 200:
-                res_data = res.json()
-                if 'url' in res_data:
-                    return jsonify({'success': True, 'download_url': res_data.get('url')})
-        except Exception:
-            continue
-            
-    return jsonify({'success': False, 'message': 'सभी डाउनलोड सर्वर्स व्यस्त हैं। कृपया कुछ देर बाद दोबारा प्रयास करें।'})
+    try:
+        ydl_opts = {
+            'format': 'bestaudio/best' if fmt == 'mp3' else 'best',
+            'quiet': True,
+            'no_warnings': True,
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(video_url, download=False)
+            download_url = info.get('url')
+            if download_url:
+                return jsonify({'success': True, 'download_url': download_url})
+            else:
+                return jsonify({'success': False, 'message': 'Could not extract direct stream link.'})
+                
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
-
+	
