@@ -3,7 +3,7 @@ import yt_dlp
 
 app = Flask(__name__)
 
-# Main UI Page - YTMP3.GG Clone Style
+# Main UI Page - YTMP3.GG Clone Style with Google Verification
 @app.route('/')
 def home():
     return '''
@@ -11,6 +11,7 @@ def home():
     <html lang="hi">
     <head>
         <meta charset="UTF-8">
+        <meta name="google-site-verification" content="YhC7qvJ2THwDehwk9YCsYdGuUvA86PvjzzTQLGc_Elk" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Download Long YouTube Videos</title>
         <style>
@@ -120,11 +121,9 @@ def download():
             if download_url:
                 return jsonify({'success': True, 'download_url': download_url})
             else:
-                return jsonify({'success': False, 'message': 'Could not extract direct stream link.'})
-                
+                return jsonify({'success': False, 'message': 'Could not extract link.'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
 
 if __name__ == '__main__':
     app.run(debug=True, port=5000)
-	
